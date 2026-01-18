@@ -5,7 +5,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import joblib
 
 # =========================
@@ -81,16 +80,6 @@ df_hist = df_model[
     (df_model["dept_id"] == dept_id)
 ].sort_values("date")
 
-# =========================
-# Gráfico histórico
-# =========================
-st.subheader("📊 Histórico de ventas")
-
-fig, ax = plt.subplots(figsize=(14, 5))
-ax.plot(df_hist["date"], df_hist["sales"])
-ax.set_xlabel("Fecha")
-ax.set_ylabel("Sales")
-st.pyplot(fig)
 
 # =========================
 # Construir calendario futuro
@@ -161,7 +150,8 @@ if st.button("Generar forecast"):
     ax2.plot(history["date"], history["sales"], label="Histórico")
     ax2.plot(forecast_df["date"], forecast_df["sales"], "--", label="Forecast")
     ax2.legend()
-    st.pyplot(fig2)
+    
+
 
 
 
