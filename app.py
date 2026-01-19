@@ -80,11 +80,16 @@ df_hist = df_model[
 
 hist_df = df_hist[["date", "sales"]].tail(60)
 
+st.subheader("📊 Histórico de ventas")
+st.line_chart(
+    hist_df.set_index("date")["sales"]
+)
+
 # =========================
 # Crear datos futuros
 # =========================
 future_dates = pd.date_range(
-    start=dates_hist.max() + pd.Timedelta(days=1),
+    start=hist_df["date"].max() + pd.Timedelta(days=1),
     periods=horizon
 )
 
@@ -149,6 +154,7 @@ st.download_button(
     file_name="forecast.csv",
     mime="text/csv"
 )
+
 
 
 
