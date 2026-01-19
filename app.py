@@ -26,16 +26,16 @@ FEATURES = [
 CAT_FEATURES = ["store_id", "dept_id"]
 
 # =========================
-# Cargar modelo y encoder
+# Cargar modelo
 # =========================
-@st.cache_data
-def load_data():
-    df = pd.read_parquet("df_model.parquet")
-    df["date"] = pd.to_datetime(df["date"])
-    return df
+@st.cache_resource
+def load_model():
+    model = joblib.load("model/gbr_model.pkl")
+    encoder = joblib.load("model/encoder.pkl")
+    return model, encoder
 
-df_model = load_data()
-
+model, encoder = load_model()
+st.success("✅ Modelo cargado correctamente")
 
 # =========================
 # Sidebar
@@ -154,6 +154,7 @@ st.download_button(
     file_name="forecast.csv",
     mime="text/csv"
 )
+
 
 
 
