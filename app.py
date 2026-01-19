@@ -5,7 +5,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
+import pickle
 
 # =========================
 # Configuración Streamlit
@@ -23,8 +23,10 @@ st.caption("HistGradientBoosting — Forecast 28 días")
 # =========================
 @st.cache_resource
 def load_model():
-    model = joblib.load("hgb_model.pkl")
-    encoder = joblib.load("encoder.pkl")
+    with open("hgb_model.pkl", "rb") as f:
+        model = pickle.load(f)
+    with open("encoder.pkl", "rb") as f:
+        encoder = pickle.load(f)
     return model, encoder
 
 model, encoder = load_model()
@@ -81,17 +83,15 @@ df_hist = df_model[
 ].sort_values("date")
 
 st.subheader("📊 Histórico")
-st.line_chart(
-    df_hist.set_index("date")["sales"]
-)
+st.line_chart(df_hist.set_index("date")["sales"])
 
 # =========================
 # Calendario futuro
 # =========================
 def build_future(last_date):
     dates = pd.date_range(last_date + pd.Timedelta(days=1), periods=28)
-
     df = pd.DataFrame({"date": dates})
+
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["dayofweek"] = df["date"].dt.dayofweek
@@ -149,11 +149,6 @@ if st.button("Generar forecast"):
 
     st.dataframe(forecast_df[["date", "sales"]])
 
-    combined = pd.concat([
-        history.assign(type="Histórico"),
-        forecast_df.assign(type="Forecast")
-    ])
+    combined = pd.concat([history, forecast_df])
+    st.line_chart(combined.set_index("date")["sales"])
 
-    st.line_chart(
-        combined.set_index("date")[["sales"]]
-    )
