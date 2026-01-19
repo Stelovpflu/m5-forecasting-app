@@ -73,16 +73,20 @@ dept_id = st.sidebar.selectbox(
 )
 
 # =========================
-# Filtrar histórico
+# Histórico
 # =========================
 df_hist = df_model[
     (df_model["store_id"] == store_id) &
     (df_model["dept_id"] == dept_id)
 ].sort_values("date")
 
+st.subheader("📊 Histórico")
+st.line_chart(
+    df_hist.set_index("date")["sales"]
+)
 
 # =========================
-# Construir calendario futuro
+# Calendario futuro
 # =========================
 def build_future(last_date):
     dates = pd.date_range(last_date + pd.Timedelta(days=1), periods=28)
@@ -97,9 +101,9 @@ def build_future(last_date):
     df["dept_id"] = dept_id
 
     df["is_event"] = 0
-    df["snap_CA"] = 1 if store_id.startswith("CA") else 0
-    df["snap_TX"] = 1 if store_id.startswith("TX") else 0
-    df["snap_WI"] = 1 if store_id.startswith("WI") else 0
+    df["snap_CA"] = int(store_id.startswith("CA"))
+    df["snap_TX"] = int(store_id.startswith("TX"))
+    df["snap_WI"] = int(store_id.startswith("WI"))
 
     return df
 
@@ -107,7 +111,6 @@ def build_future(last_date):
 # Forecast autoregresivo
 # =========================
 def forecast_28(model, history, future):
-
     hist = history.copy()
     preds = []
 
@@ -146,13 +149,11 @@ if st.button("Generar forecast"):
 
     st.dataframe(forecast_df[["date", "sales"]])
 
-    fig2, ax2 = plt.subplots(figsize=(14, 5))
-    ax2.plot(history["date"], history["sales"], label="Histórico")
-    ax2.plot(forecast_df["date"], forecast_df["sales"], "--", label="Forecast")
-    ax2.legend()
-    
+    combined = pd.concat([
+        history.assign(type="Histórico"),
+        forecast_df.assign(type="Forecast")
+    ])
 
-
-
-
-
+    st.line_chart(
+        combined.set_index("date")[["sales"]]
+    )
