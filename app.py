@@ -28,13 +28,14 @@ CAT_FEATURES = ["store_id", "dept_id"]
 # =========================
 # Cargar modelo y encoder
 # =========================
-@st.cache_resource
-def load_model():
-    model = joblib.load("gbr_model.pkl")
-    encoder = joblib.load("encoder.pkl")
-    return model, encoder
+@st.cache_data
+def load_data():
+    df = pd.read_parquet("df_model.parquet")
+    df["date"] = pd.to_datetime(df["date"])
+    return df
 
-model, encoder = load_model()
+df_model = load_data()
+
 
 # =========================
 # Sidebar
@@ -43,18 +44,21 @@ st.sidebar.header("Configuración")
 
 store_id = st.sidebar.selectbox(
     "Store ID",
-    ["CA_1", "CA_2", "TX_1", "WI_1"]
+    sorted(df_model["store_id"].unique())
 )
 
 dept_id = st.sidebar.selectbox(
     "Department",
-    ["FOODS_1", "FOODS_2", "HOBBIES_1"]
+    sorted(
+        df_model[df_model["store_id"] == store_id]["dept_id"].unique()
+    )
 )
 
 horizon = st.sidebar.selectbox(
     "Horizonte de predicción (días)",
     [7, 14, 28]
 )
+
 
 # =========================
 # Métricas del modelo
@@ -68,14 +72,13 @@ col2.metric("MAE", "52.36")
 
 # =========================
 # Datos históricos simulados
-# (en producción esto vendría de BD)
 # =========================
-dates_hist = pd.date_range(end=pd.Timestamp.today(), periods=60)
+df_hist = df_model[
+    (df_model["store_id"] == store_id) &
+    (df_model["dept_id"] == dept_id)
+].sort_values("date")
 
-hist_df = pd.DataFrame({
-    "date": dates_hist,
-    "sales": np.random.randint(200, 400, size=60)
-})
+hist_df = df_hist[["date", "sales"]].tail(60)
 
 # =========================
 # Crear datos futuros
@@ -146,6 +149,7 @@ st.download_button(
     file_name="forecast.csv",
     mime="text/csv"
 )
+
 
 
 
