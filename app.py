@@ -30,8 +30,8 @@ CAT_FEATURES = ["store_id", "dept_id"]
 # =========================
 @st.cache_resource
 def load_model():
-    model = joblib.load("model/gbr_model.pkl")
-    encoder = joblib.load("model/encoder.pkl")
+    model = joblib.load("gbr_model.pkl")
+    encoder = joblib.load("encoder.pkl")
     return model, encoder
 
 model, encoder = load_model()
@@ -146,6 +146,7 @@ st.download_button(
     file_name="forecast.csv",
     mime="text/csv"
 )
+
 
 
 
