@@ -35,3 +35,16 @@ Permitir a usuarios de negocio:
 - Scikit-learn
 - Streamlit
 - Matplotlib
+
+
+
+
+⚠️ Notas
+Este repositorio contiene **solo el código de inferencia**.
+El entrenamiento del modelo se realizó por separado.
+
+
+
+👤 Autor
+**Steve Loveday**  
+Data Scientist | Business Analytics | Machine Learning
