@@ -1,51 +1,20 @@
-# =========================
-# app.py — M5 Forecasting App
-# =========================
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import os
+import matplotlib.pyplot as plt
 
 # =========================
-# Configuración Streamlit
+# Configuración general
 # =========================
 st.set_page_config(
-    page_title="M5 Sales Forecasting",
+    page_title="Retail Sales Forecast",
     layout="wide"
 )
 
-st.title("📈 M5 Sales Forecasting")
-st.caption("Gradient Boosting Regressor — Forecast 28 días")
+TARGET = "sales"
 
-# =========================
-# Cargar modelo y encoder
-# =========================
-@st.cache_resource
-def load_model():
-    model = joblib.load("gbr_model.pkl")
-    encoder = joblib.load("encoder.pkl")
-    return model, encoder
-
-model, encoder = load_model()
-st.success("✅ Modelo cargado correctamente")
-
-# =========================
-# Cargar datos
-# =========================
-@st.cache_data
-def load_data():
-    df = pd.read_parquet("df_model.parquet")
-    df["date"] = pd.to_datetime(df["date"])
-    return df
-
-df_model = load_data()
-
-# =========================
-# Features
-# =========================
-features = [
+FEATURES = [
     "store_id", "dept_id",
     "year", "month", "dayofweek", "weekofyear",
     "is_event",
@@ -54,124 +23,131 @@ features = [
     "rolling_7", "rolling_14"
 ]
 
-cat_features = ["store_id", "dept_id"]
+CAT_FEATURES = ["store_id", "dept_id"]
+
+# =========================
+# Cargar modelo y encoder
+# =========================
+@st.cache_resource
+def load_model():
+    model = joblib.load("model/gbr_model.pkl")
+    encoder = joblib.load("model/encoder.pkl")
+    return model, encoder
+
+model, encoder = load_model()
 
 # =========================
 # Sidebar
 # =========================
-st.sidebar.header("Filtros")
+st.sidebar.header("Configuración")
 
 store_id = st.sidebar.selectbox(
-    "Store",
-    sorted(df_model["store_id"].unique())
+    "Store ID",
+    ["CA_1", "CA_2", "TX_1", "WI_1"]
 )
 
 dept_id = st.sidebar.selectbox(
     "Department",
-    sorted(
-        df_model[df_model["store_id"] == store_id]["dept_id"].unique()
-    )
+    ["FOODS_1", "FOODS_2", "HOBBIES_1"]
+)
+
+horizon = st.sidebar.selectbox(
+    "Horizonte de predicción (días)",
+    [7, 14, 28]
 )
 
 # =========================
-# Histórico
+# Métricas del modelo
 # =========================
-df_hist = df_model[
-    (df_model["store_id"] == store_id) &
-    (df_model["dept_id"] == dept_id)
-].sort_values("date")
+st.markdown("### 📊 Métricas del Modelo")
 
-st.subheader("📊 Histórico de Ventas")
-st.line_chart(
-    df_hist.set_index("date")["sales"]
+col1, col2 = st.columns(2)
+
+col1.metric("RMSE", "85.61")
+col2.metric("MAE", "52.36")
+
+# =========================
+# Datos históricos simulados
+# (en producción esto vendría de BD)
+# =========================
+dates_hist = pd.date_range(end=pd.Timestamp.today(), periods=60)
+
+hist_df = pd.DataFrame({
+    "date": dates_hist,
+    "sales": np.random.randint(200, 400, size=60)
+})
+
+# =========================
+# Crear datos futuros
+# =========================
+future_dates = pd.date_range(
+    start=dates_hist.max() + pd.Timedelta(days=1),
+    periods=horizon
 )
 
-# =========================
-# Calendario futuro
-# =========================
-def build_future(last_date):
-    dates = pd.date_range(
-        last_date + pd.Timedelta(days=1),
-        periods=28
-    )
+future_df = pd.DataFrame({
+    "date": future_dates,
+    "store_id": store_id,
+    "dept_id": dept_id
+})
 
-    df = pd.DataFrame({"date": dates})
-    df["year"] = df["date"].dt.year
-    df["month"] = df["date"].dt.month
-    df["dayofweek"] = df["date"].dt.dayofweek
-    df["weekofyear"] = df["date"].dt.isocalendar().week.astype(int)
+future_df["year"] = future_df["date"].dt.year
+future_df["month"] = future_df["date"].dt.month
+future_df["dayofweek"] = future_df["date"].dt.dayofweek
+future_df["weekofyear"] = future_df["date"].dt.isocalendar().week.astype(int)
 
-    df["store_id"] = store_id
-    df["dept_id"] = dept_id
+future_df["is_event"] = 0
+future_df["snap_CA"] = 1 if store_id.startswith("CA") else 0
+future_df["snap_TX"] = 1 if store_id.startswith("TX") else 0
+future_df["snap_WI"] = 1 if store_id.startswith("WI") else 0
 
-    df["is_event"] = 0
-    df["snap_CA"] = int(store_id.startswith("CA"))
-    df["snap_TX"] = int(store_id.startswith("TX"))
-    df["snap_WI"] = int(store_id.startswith("WI"))
+last_sales = hist_df["sales"].iloc[-1]
 
-    return df
+future_df["lag_1"] = last_sales
+future_df["lag_7"] = last_sales
+future_df["lag_14"] = last_sales
+future_df["rolling_7"] = last_sales
+future_df["rolling_14"] = last_sales
 
-# =========================
-# Forecast autoregresivo
-# =========================
-def forecast_28(model, encoder, history, future):
-    hist = history.copy()
-    preds = []
-
-    for i in range(28):
-        row = future.iloc[i].copy()
-
-        row["lag_1"] = hist["sales"].iloc[-1]
-        row["lag_7"] = hist["sales"].iloc[-7]
-        row["lag_14"] = hist["sales"].iloc[-14]
-
-        row["rolling_7"] = hist["sales"].iloc[-7:].mean()
-        row["rolling_14"] = hist["sales"].iloc[-14:].mean()
-
-        X = row[features].to_frame().T
-        X[cat_features] = encoder.transform(X[cat_features])
-
-        y_pred = model.predict(X)[0]
-        row["sales"] = float(y_pred)
-
-        preds.append(row)
-        hist = pd.concat(
-            [hist, row[["date", "sales"]].to_frame().T],
-            ignore_index=True
-        )
-
-    return pd.DataFrame(preds)
+X_future = future_df[FEATURES].copy()
+X_future[CAT_FEATURES] = encoder.transform(X_future[CAT_FEATURES])
 
 # =========================
-# Ejecutar forecast
+# Predicción
 # =========================
-st.markdown("---")
-st.subheader("🔮 Forecast 28 días")
+future_df["forecast"] = model.predict(X_future)
 
-if st.button("Generar forecast"):
-    history = df_hist[["date", "sales"]].tail(14)
-    future = build_future(history["date"].max())
+# =========================
+# Gráfico
+# =========================
+st.markdown("### 📈 Ventas históricas vs Forecast")
 
-    forecast_df = forecast_28(
-        model=model,
-        encoder=encoder,
-        history=history,
-        future=future
-    )
+fig, ax = plt.subplots(figsize=(10, 4))
 
-    st.dataframe(
-        forecast_df[["date", "sales"]],
-        use_container_width=True
-    )
+ax.plot(hist_df["date"], hist_df["sales"], label="Histórico")
+ax.plot(future_df["date"], future_df["forecast"], label="Forecast")
 
-    combined = pd.concat([
-        history.assign(tipo="Histórico"),
-        forecast_df.assign(tipo="Forecast")
-    ])
+ax.legend()
+ax.set_xlabel("Fecha")
+ax.set_ylabel("Ventas")
 
-    st.line_chart(
-        combined.set_index("date")[["sales"]]
-    )
+st.pyplot(fig)
+
+# =========================
+# Descargar CSV
+# =========================
+st.markdown("### ⬇️ Descargar forecast")
+
+csv = future_df[["date", "forecast"]].to_csv(index=False)
+
+st.download_button(
+    label="Descargar CSV",
+    data=csv,
+    file_name="forecast.csv",
+    mime="text/csv"
+)
+
+
 
 
 
