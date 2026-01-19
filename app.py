@@ -5,7 +5,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
+import joblib
+import os
 
 # =========================
 # Configuración Streamlit
@@ -16,17 +17,15 @@ st.set_page_config(
 )
 
 st.title("📈 M5 Sales Forecasting")
-st.caption("HistGradientBoosting — Forecast 28 días")
+st.caption("Gradient Boosting Regressor — Forecast 28 días")
 
 # =========================
 # Cargar modelo y encoder
 # =========================
 @st.cache_resource
 def load_model():
-    with open("hgb_model.pkl", "rb") as f:
-        model = pickle.load(f)
-    with open("encoder.pkl", "rb") as f:
-        encoder = pickle.load(f)
+    model = joblib.load("model/gbr_model.pkl")
+    encoder = joblib.load("model/encoder.pkl")
     return model, encoder
 
 model, encoder = load_model()
@@ -82,16 +81,21 @@ df_hist = df_model[
     (df_model["dept_id"] == dept_id)
 ].sort_values("date")
 
-st.subheader("📊 Histórico")
-st.line_chart(df_hist.set_index("date")["sales"])
+st.subheader("📊 Histórico de Ventas")
+st.line_chart(
+    df_hist.set_index("date")["sales"]
+)
 
 # =========================
 # Calendario futuro
 # =========================
 def build_future(last_date):
-    dates = pd.date_range(last_date + pd.Timedelta(days=1), periods=28)
-    df = pd.DataFrame({"date": dates})
+    dates = pd.date_range(
+        last_date + pd.Timedelta(days=1),
+        periods=28
+    )
 
+    df = pd.DataFrame({"date": dates})
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["dayofweek"] = df["date"].dt.dayofweek
@@ -110,7 +114,7 @@ def build_future(last_date):
 # =========================
 # Forecast autoregresivo
 # =========================
-def forecast_28(model, history, future):
+def forecast_28(model, encoder, history, future):
     hist = history.copy()
     preds = []
 
@@ -128,10 +132,13 @@ def forecast_28(model, history, future):
         X[cat_features] = encoder.transform(X[cat_features])
 
         y_pred = model.predict(X)[0]
-        row["sales"] = y_pred
+        row["sales"] = float(y_pred)
 
         preds.append(row)
-        hist = pd.concat([hist, row[["date", "sales"]].to_frame().T])
+        hist = pd.concat(
+            [hist, row[["date", "sales"]].to_frame().T],
+            ignore_index=True
+        )
 
     return pd.DataFrame(preds)
 
@@ -145,10 +152,26 @@ if st.button("Generar forecast"):
     history = df_hist[["date", "sales"]].tail(14)
     future = build_future(history["date"].max())
 
-    forecast_df = forecast_28(model, history, future)
+    forecast_df = forecast_28(
+        model=model,
+        encoder=encoder,
+        history=history,
+        future=future
+    )
 
-    st.dataframe(forecast_df[["date", "sales"]])
+    st.dataframe(
+        forecast_df[["date", "sales"]],
+        use_container_width=True
+    )
 
-    combined = pd.concat([history, forecast_df])
-    st.line_chart(combined.set_index("date")["sales"])
+    combined = pd.concat([
+        history.assign(tipo="Histórico"),
+        forecast_df.assign(tipo="Forecast")
+    ])
+
+    st.line_chart(
+        combined.set_index("date")[["sales"]]
+    )
+
+
 
