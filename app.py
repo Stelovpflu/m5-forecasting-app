@@ -26,7 +26,7 @@ FEATURES = [
 CAT_FEATURES = ["store_id", "dept_id"]
 
 # =========================
-# Cargar modelo
+# Cargar modelo y encoder
 # =========================
 @st.cache_resource
 def load_model():
@@ -38,20 +38,24 @@ model, encoder = load_model()
 st.success("✅ Modelo cargado correctamente")
 
 # =========================
+# Valores válidos desde encoder
+# =========================
+store_ids = list(encoder.categories_[0])
+dept_ids = list(encoder.categories_[1])
+
+# =========================
 # Sidebar
 # =========================
 st.sidebar.header("Configuración")
 
 store_id = st.sidebar.selectbox(
     "Store ID",
-    sorted(df_model["store_id"].unique())
+    store_ids
 )
 
 dept_id = st.sidebar.selectbox(
     "Department",
-    sorted(
-        df_model[df_model["store_id"] == store_id]["dept_id"].unique()
-    )
+    dept_ids
 )
 
 horizon = st.sidebar.selectbox(
@@ -59,31 +63,34 @@ horizon = st.sidebar.selectbox(
     [7, 14, 28]
 )
 
-
 # =========================
 # Métricas del modelo
 # =========================
 st.markdown("### 📊 Métricas del Modelo")
 
 col1, col2 = st.columns(2)
-
 col1.metric("RMSE", "85.61")
 col2.metric("MAE", "52.36")
 
 # =========================
-# Datos históricos simulados
+# Histórico SIMULADO (placeholder profesional)
 # =========================
-df_hist = df_model[
-    (df_model["store_id"] == store_id) &
-    (df_model["dept_id"] == dept_id)
-].sort_values("date")
+np.random.seed(42)
 
-hist_df = df_hist[["date", "sales"]].tail(60)
+dates_hist = pd.date_range(end=pd.Timestamp.today(), periods=60)
+
+sales_hist = np.maximum(
+    0,
+    np.random.normal(loc=350, scale=80, size=len(dates_hist))
+)
+
+hist_df = pd.DataFrame({
+    "date": dates_hist,
+    "sales": sales_hist
+})
 
 st.subheader("📊 Histórico de ventas")
-st.line_chart(
-    hist_df.set_index("date")["sales"]
-)
+st.line_chart(hist_df.set_index("date")["sales"])
 
 # =========================
 # Crear datos futuros
@@ -154,6 +161,8 @@ st.download_button(
     file_name="forecast.csv",
     mime="text/csv"
 )
+
+
 
 
 
